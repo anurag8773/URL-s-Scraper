@@ -1,0 +1,73 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:15
+    restart: always
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: anurag
+      POSTGRES_PASSWORD: Anurag
+      POSTGRES_DB: scraper_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:latest
+    restart: always
+    ports:
+      - "6379:6379"
+
+  django:
+    build: .
+    restart: always
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - redis
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+
+  fastapi:
+    build: ./scraper
+    restart: always
+    ports:
+      - "8001:8001"
+    depends_on:
+      - db
+      - redis
+
+  celery:
+    build: .
+    restart: always
+    command: celery -A backend worker --loglevel=info
+    depends_on:
+      - django
+      - redis
+
+  celery-beat:
+    build: .
+    restart: always
+    command: celery -A backend beat --loglevel=info
+    depends_on:
+      - django
+      - redis
+
+  flower:
+    image: mher/flower
+    restart: always
+    command: flower --broker=redis://redis:6379
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - celery
+
+volumes:
+  postgres_data:
